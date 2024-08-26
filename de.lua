@@ -107,18 +107,6 @@ espToggle.TextSize = 14
 espToggle.TextColor3 = Color3.new(1, 1, 1)
 espToggle.Parent = weaponPage
 
--- Silent Aimbot Toggle
-local silentAimbotToggle = Instance.new("TextButton")
-silentAimbotToggle.Name = "SilentAimbotToggle"
-silentAimbotToggle.Size = UDim2.new(0, 200, 0, 40)
-silentAimbotToggle.Position = UDim2.new(0, 10, 0, 200)  -- Lowered position
-silentAimbotToggle.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
-silentAimbotToggle.Text = "Silent Aimbot: OFF"
-silentAimbotToggle.Font = Enum.Font.Gotham
-silentAimbotToggle.TextSize = 14
-silentAimbotToggle.TextColor3 = Color3.new(1, 1, 1)
-silentAimbotToggle.Parent = weaponPage
-
 -- Toggle GUI visibility with Right Shift
 local UIS = game:GetService("UserInputService")
 UIS.InputBegan:Connect(function(input)
@@ -130,7 +118,6 @@ end)
 -- Global variables for cheats
 local aimbotEnabled = false
 local espEnabled = false
-local silentAimbotEnabled = false
 
 -- Refined Aimbot Functionality
 local players = game:GetService("Players")
@@ -221,28 +208,50 @@ end)
 local players = game:GetService("Players")
 local localPlayer = players.LocalPlayer
 local runService = game:GetService("RunService")
+local espEnabled = false
 
--- Store Highlight objects to avoid recreating them every frame
+-- Store Highlight objects and nametags
 local chams = {}
+local nametags = {}
 
 -- Function to create or get a Highlight instance
-local function getHighlight(player)
-    if chams[player] then
-        return chams[player]
-    else
-        local highlight = Instance.new("Highlight")
-        highlight.FillColor = Color3.fromRGB(255, 0, 0)
-        highlight.FillTransparency = 0.5
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.OutlineTransparency = 0
-        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        highlight.Parent = player.Character
-        chams[player] = highlight
-        return highlight
+local function createHighlight(player)
+    if not player.Character then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = Color3.fromRGB(255, 0, 0)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = player.Character
+    chams[player] = highlight
+
+    -- Create a nametag
+    local head = player.Character:FindFirstChild("Head")
+    if head then
+        local nameTag = Instance.new("BillboardGui")
+        nameTag.Adornee = head
+        nameTag.Size = UDim2.new(0, 80, 0, 30) -- Smaller size
+        nameTag.StudsOffset = Vector3.new(0, 2.5, 0) -- Closer to the head
+        nameTag.AlwaysOnTop = true
+        nameTag.Parent = head
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 1, 0)
+        nameLabel.Text = player.Name
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextScaled = true
+        nameLabel.TextStrokeTransparency = 0  -- Black outline
+        nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        nameLabel.Parent = nameTag
+
+        nametags[player] = nameTag
     end
 end
 
--- Function to clear all ESP highlights
+-- Function to clear all ESP highlights and nametags
 local function clearESP()
     for _, highlight in pairs(chams) do
         if highlight.Parent then
@@ -250,28 +259,37 @@ local function clearESP()
         end
     end
     chams = {}
+
+    for _, nametag in pairs(nametags) do
+        if nametag.Parent then
+            nametag:Destroy()
+        end
+    end
+    nametags = {}
 end
 
 -- Function to update ESP
 local function updateESP()
+    clearESP()
     for _, player in pairs(players:GetPlayers()) do
         if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local highlight = getHighlight(player)
-            highlight.Enabled = true
+            createHighlight(player)
         end
     end
 end
 
--- Global variable for ESP toggle state
-local espEnabled = false
+-- Ensure ESP stays active even after respawn
+local function onCharacterAdded(character)
+    if espEnabled then
+        updateESP()
+    end
+end
 
 -- Toggle ESP function
 local function toggleESP()
     if espEnabled then
-        -- Start updating ESP
         runService:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Camera.Value + 1, updateESP)
     else
-        -- Stop updating ESP and clear highlights
         runService:UnbindFromRenderStep("ESPUpdate")
         clearESP()
     end
@@ -284,67 +302,5 @@ espToggle.MouseButton1Click:Connect(function()
     toggleESP()
 end)
 
--- Refined Silent Aimbot Functionality
-local players = game:GetService("Players")
-local localPlayer = players.LocalPlayer
-local runService = game:GetService("RunService")
-local camera = workspace.CurrentCamera
-
-local silentAimbotEnabled = false
-
--- Function to find the closest target's torso
-local function findClosestTarget()
-    local closestTarget = nil
-    local shortestDistance = math.huge
-
-    for _, player in pairs(players:GetPlayers()) do
-        if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Torso") then
-            local torsoPosition = player.Character.Torso.Position
-            local screenPosition, onScreen = camera:WorldToViewportPoint(torsoPosition)
-
-            if onScreen then
-                local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)).Magnitude
-
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestTarget = player.Character.Torso
-                end
-            end
-        end
-    end
-
-    return closestTarget
-end
-
--- Silent Aimbot logic
-local function silentAimAt(target)
-    if target then
-        local mouse = localPlayer:GetMouse()
-        mouse.TargetFilter = target.Parent
-        mouse.Hit = target.CFrame
-    end
-end
-
--- Update loop for Silent Aimbot
-local function updateSilentAimbot()
-    local target = findClosestTarget()
-    if target then
-        silentAimAt(target)
-    end
-end
-
--- Toggle Silent Aimbot function
-local function toggleSilentAimbot()
-    if silentAimbotEnabled then
-        runService:BindToRenderStep("SilentAimbot", Enum.RenderPriority.Camera.Value + 1, updateSilentAimbot)
-    else
-        runService:UnbindFromRenderStep("SilentAimbot")
-    end
-end
-
--- Silent Aimbot Toggle Button Functionality
-silentAimbotToggle.MouseButton1Click:Connect(function()
-    silentAimbotEnabled = not silentAimbotEnabled
-    silentAimbotToggle.Text = "Silent Aimbot: " .. (silentAimbotEnabled and "ON" or "OFF")
-    toggleSilentAimbot()
-end)
+-- Listen for respawns to reapply ESP
+localPlayer.CharacterAdded:Connect(onCharacterAdded)
